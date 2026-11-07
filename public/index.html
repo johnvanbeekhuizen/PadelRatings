@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Padelratings</title>
+<meta name="theme-color" content="#17427a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%BE%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eaf0f6;
+    --card: #ffffff;
+    --ink: #0e1d31;
+    --muted: #5a6b80;
+    --court: #17427a;
+    --court-ink: #ffffff;
+    --line: #d5dfeb;
+    --ball: #d8e13f;
+    --bad: #b3261e;
+    --shadow: 0 1px 2px rgba(14,29,49,.06), 0 8px 24px rgba(14,29,49,.06);
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #09121e;
+      --card: #12233a;
+      --ink: #e9eff7;
+      --muted: #94a6bb;
+      --court: #2c6bbd;
+      --line: #223853;
+      --bad: #ff8a80;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.45;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+    min-height: 100vh;
+  }
+
+  .shell { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 20px; }
+
+  /* ---------- paneel met titel, refresh en toevoegen ---------- */
+  .panel {
+    background: var(--court);
+    color: var(--court-ink);
+    border-radius: 24px;
+    padding: 24px 22px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  /* veldlijnen van een padelbaan */
+  .panel::before {
+    content: "";
+    position: absolute; inset: 14px;
+    border: 2px solid rgba(255,255,255,.28);
+    border-radius: 14px;
+    pointer-events: none;
+  }
+  .panel::after {
+    content: "";
+    position: absolute; left: 14px; right: 14px; top: 58%;
+    border-top: 2px solid rgba(255,255,255,.28);
+    pointer-events: none;
+  }
+  .panel > * { position: relative; z-index: 1; }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(2rem, 7vw, 3rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin: 6px 0 8px;
+  }
+  .sub { margin: 0 0 20px; opacity: .85; max-width: 32ch; }
+
+  .refresh {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--ball); color: #1b2200;
+    border: 0; border-radius: 999px;
+    font: 600 1rem var(--body);
+    padding: 12px 20px; min-height: 48px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .refresh:hover { filter: brightness(1.05); }
+  .refresh:disabled { opacity: .7; cursor: progress; }
+  .refresh svg { width: 20px; height: 20px; }
+  .refresh.spin svg { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .stamp { display: block; margin-top: 12px; font-size: .9rem; opacity: .85; min-height: 1.3em; }
+
+  .add { margin-top: 26px; }
+  .add label { display: block; font-weight: 600; margin-bottom: 8px; }
+  .add-row { display: flex; gap: 8px; }
+  .add input {
+    flex: 1; min-width: 0;
+    font: 500 1rem var(--body);
+    padding: 12px 14px; min-height: 48px;
+    border-radius: 12px; border: 2px solid transparent;
+    background: rgba(255,255,255,.95); color: #0e1d31;
+  }
+  .add input:focus-visible { outline: 3px solid var(--ball); outline-offset: 1px; }
+  .add button {
+    font: 600 1rem var(--body);
+    min-height: 48px; padding: 0 18px;
+    border-radius: 12px; border: 2px solid rgba(255,255,255,.7);
+    background: transparent; color: #fff; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .add button:hover { background: rgba(255,255,255,.12); }
+  .add button:disabled { opacity: .6; cursor: progress; }
+  .msg { min-height: 1.4em; margin: 8px 0 0; font-size: .92rem; }
+  .msg.err { color: #ffd3cf; }
+
+  /* ---------- lijst ---------- */
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
+
+  .row {
+    background: var(--card);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 14px 14px 12px 14px;
+    display: grid;
+    grid-template-columns: 40px 1fr auto 36px;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 10px;
+  }
+  .rank {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    font: 800 1.1rem var(--display);
+    background: var(--bg); color: var(--ink);
+  }
+  .row:first-child .rank { background: var(--ball); color: #1b2200; }
+  .name { font: 700 1.1rem var(--display); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .nr { display: block; font-size: .85rem; color: var(--muted); font-weight: 500; }
+  .score {
+    font: 800 1.5rem var(--display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    text-align: right;
+  }
+  .score.na { font-size: 1rem; font-weight: 600; color: var(--bad); }
+  .score.wait { color: var(--muted); font-weight: 600; font-size: 1rem; }
+  .remove {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 0; background: transparent; color: var(--muted);
+    font-size: 1.4rem; line-height: 1; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .remove:hover { background: var(--bg); color: var(--ink); }
+  .bar { grid-column: 2 / 4; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--court); border-radius: 3px; }
+  .err-note { grid-column: 2 / 4; margin: -4px 0 0; font-size: .85rem; color: var(--bad); }
+
+  .row.loading .name, .row.loading .score { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  .empty { background: var(--card); border-radius: 18px; padding: 24px; color: var(--muted); box-shadow: var(--shadow); }
+
+  .note { font-size: .85rem; color: var(--muted); margin: 4px 4px 0; }
+
+  :focus-visible { outline: 3px solid var(--court); outline-offset: 2px; }
+  .panel :focus-visible { outline-color: var(--ball); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .refresh.spin svg, .row.loading .name, .row.loading .score { animation: none; }
+  }
+
+  /* ---------- computer: paneel links, lijst rechts ---------- */
+  @media (min-width: 900px) {
+    .shell { grid-template-columns: 360px 1fr; gap: 28px; padding-top: 40px; align-items: start; }
+    .panel { position: sticky; top: 24px; padding: 32px 28px 28px; }
+    .row { padding: 18px 18px 14px; grid-template-columns: 48px 1fr auto 36px; }
+    .rank { width: 48px; height: 48px; font-size: 1.25rem; }
+    .name { font-size: 1.25rem; }
+    .score { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <section class="panel" aria-labelledby="titel">
+    <h1 id="titel">Padelratings</h1>
+    <p class="sub">KNLTB padelrating (dubbel), laagste rating bovenaan.</p>
+
+    <button class="refresh" id="refresh" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      <span id="refresh-label">Vernieuwen</span>
+    </button>
+    <span class="stamp" id="stamp" aria-live="polite"></span>
+
+    <form class="add" id="add-form" autocomplete="off">
+      <label for="bondsnummer">Speler toevoegen</label>
+      <div class="add-row">
+        <input id="bondsnummer" name="bondsnummer" inputmode="numeric" pattern="[0-9]*" placeholder="Bondsnummer, bijv. 19496060" maxlength="10">
+        <button type="submit" id="add-btn">Toevoegen</button>
+      </div>
+      <p class="msg" id="add-msg" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section aria-label="Ranglijst">
+    <ol class="ladder" id="ladder"></ol>
+    <p class="note">Een lagere rating is een sterkere speler. Ratings komen van MijnKNLTB en kunnen hier niet worden aangepast.</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var DEFAULT_PLAYERS = [
+    { id: "19496060", name: "John van Beekhuizen" },
+    { id: "16717759", name: "Reinald Grift" },
+    { id: "15830721", name: "Jan van de Koot" },
+    { id: "15467538", name: "Bert Vastenburg" },
+    { id: "14755270", name: "Albert Jan van Gens" }
+  ];
+  var LS_PLAYERS = "padel.players.v1";
+  var LS_CACHE = "padel.cache.v1";
+  var API = "/api/rating";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var ladder = $("ladder");
+  var refreshBtn = $("refresh");
+  var stamp = $("stamp");
+
+  function load(key, fallback) {
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch (e) { return fallback; }
+  }
+  function save(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* opslag kan uitstaan */ }
+  }
+
+  var players = load(LS_PLAYERS, null) || DEFAULT_PLAYERS.slice();
+  var cache = load(LS_CACHE, {});   // id -> {name, rating, error, at}
+  var loadingIds = {};
+  var lastUpdate = load(LS_CACHE + ".at", null);
+
+  var fmt = new Intl.NumberFormat("nl-NL", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+  function sorted() {
+    return players.slice().sort(function (a, b) {
+      var ra = cache[a.id] && typeof cache[a.id].rating === "number" ? cache[a.id].rating : null;
+      var rb = cache[b.id] && typeof cache[b.id].rating === "number" ? cache[b.id].rating : null;
+      if (ra === null && rb === null) return a.name.localeCompare(b.name, "nl");
+      if (ra === null) return 1;
+      if (rb === null) return -1;
+      return ra - rb;
+    });
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render() {
+    ladder.textContent = "";
+    if (!players.length) {
+      ladder.appendChild(el("li", "empty", "Nog geen spelers. Voeg er een toe met een bondsnummer."));
+      return;
+    }
+    sorted().forEach(function (p, i) {
+      var c = cache[p.id] || {};
+      var busy = !!loadingIds[p.id];
+      var hasRating = typeof c.rating === "number";
+
+      var li = el("li", "row" + (busy && !hasRating ? " loading" : ""));
+      li.appendChild(el("div", "rank", String(i + 1)));
+
+      var who = el("div");
+      who.appendChild(el("div", "name", c.name || p.name));
+      who.appendChild(el("span", "nr", "Bondsnummer " + p.id));
+      li.appendChild(who);
+
+      var score;
+      if (hasRating) score = el("div", "score", fmt.format(c.rating));
+      else if (busy) score = el("div", "score wait", "Ophalen…");
+      else score = el("div", "score na", "Geen rating");
+      li.appendChild(score);
+
+      var rm = el("button", "remove", "\u00d7");
+      rm.type = "button";
+      rm.setAttribute("aria-label", (c.name || p.name) + " verwijderen");
+      rm.addEventListener("click", function () { removePlayer(p.id); });
+      li.appendChild(rm);
+
+      if (hasRating) {
+        // sterkte-balk: rating 1 = vol, rating 11 = leeg
+        var pct = Math.max(4, Math.min(100, ((11 - c.rating) / 10) * 100));
+        var bar = el("div", "bar");
+        bar.setAttribute("role", "img");
+        bar.setAttribute("aria-label", "Sterkte-indicatie");
+        var fill = document.createElement("i");
+        fill.style.width = pct.toFixed(1) + "%";
+        bar.appendChild(fill);
+        li.appendChild(bar);
+      } else if (!busy && c.error) {
+        li.appendChild(el("p", "err-note", c.error));
+      }
+      ladder.appendChild(li);
+    });
+  }
+
+  function setStamp() {
+    if (!lastUpdate) { stamp.textContent = ""; return; }
+    var d = new Date(lastUpdate);
+    stamp.textContent = "Bijgewerkt op " + d.toLocaleDateString("nl-NL", { day: "numeric", month: "long" }) +
+      " om " + d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function fetchPlayer(id) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 25000);
+    return fetch(API + "?id=" + encodeURIComponent(id), { signal: ctl.signal, cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { clearTimeout(timer); return data; })
+      .catch(function (e) {
+        clearTimeout(timer);
+        return { ok: false, error: e.name === "AbortError" ? "Duurde te lang" : "Geen verbinding met de server" };
+      });
+  }
+
+  function applyResult(id, data) {
+    var prev = cache[id] || {};
+    if (data.ok && typeof data.rating === "number") {
+      cache[id] = { name: data.name || prev.name || null, rating: data.rating, error: null, at: data.fetchedAt };
+    } else {
+      // bij een mislukte poging blijft de laatst bekende rating staan
+      cache[id] = {
+        name: data.name || prev.name || null,
+        rating: typeof prev.rating === "number" ? prev.rating : null,
+        error: data.error || "Ophalen mislukt",
+        at: prev.at || null
+      };
+    }
+  }
+
+  function refreshAll() {
+    if (refreshBtn.disabled) return Promise.resolve();
+    refreshBtn.disabled = true;
+    refreshBtn.classList.add("spin");
+    $("refresh-label").textContent = "Bezig…";
+    var ids = players.map(function (p) { return p.id; });
+    ids.forEach(function (id) { loadingIds[id] = true; });
+    render();
+
+    var queue = ids.slice();
+    var workers = [];
+    function worker() {
+      if (!queue.length) return Promise.resolve();
+      var id = queue.shift();
+      return fetchPlayer(id).then(function (data) {
+        applyResult(id, data);
+        delete loadingIds[id];
+        render();
+        return worker();
+      });
+    }
+    for (var i = 0; i < 3; i++) workers.push(worker());
+
+    return Promise.all(workers).then(function () {
+      var anyOk = ids.some(function (id) { return cache[id] && typeof cache[id].rating === "number" && !cache[id].error; });
+      if (anyOk) { lastUpdate = new Date().toISOString(); save(LS_CACHE + ".at", lastUpdate); }
+      save(LS_CACHE, cache);
+      setStamp();
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove("spin");
+      $("refresh-label").textContent = "Vernieuwen";
+      render();
+    });
+  }
+
+  function removePlayer(id) {
+    players = players.filter(function (p) { return p.id !== id; });
+    delete cache[id];
+    save(LS_PLAYERS, players);
+    save(LS_CACHE, cache);
+    render();
+  }
+
+  $("add-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("bondsnummer");
+    var msg = $("add-msg");
+    var btn = $("add-btn");
+    var id = input.value.replace(/\s+/g, "");
+    msg.className = "msg";
+    if (!/^\d{5,10}$/.test(id)) { msg.className = "msg err"; msg.textContent = "Een bondsnummer bestaat uit alleen cijfers."; return; }
+    if (players.some(function (p) { return p.id === id; })) { msg.className = "msg err"; msg.textContent = "Deze speler staat al in de lijst."; return; }
+
+    btn.disabled = true;
+    msg.textContent = "Speler opzoeken…";
+    fetchPlayer(id).then(function (data) {
+      btn.disabled = false;
+      if (!data.ok || typeof data.rating !== "number") {
+        msg.className = "msg err";
+        msg.textContent = data.error || "Speler niet gevonden.";
+        return;
+      }
+      players.push({ id: id, name: data.name || ("Speler " + id) });
+      applyResult(id, data);
+      save(LS_PLAYERS, players);
+      save(LS_CACHE, cache);
+      input.value = "";
+      msg.textContent = (data.name || "Speler") + " is toegevoegd.";
+      render();
+    });
+  });
+
+  refreshBtn.addEventListener("click", refreshAll);
+
+  // eerst direct tonen wat we al weten, daarna de laatste stand ophalen
+  render();
+  setStamp();
+  refreshAll();
+})();
+</script>
+</body>
+</html>

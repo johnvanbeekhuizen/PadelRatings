@@ -1,0 +1,7 @@
+{
+  "name": "padel-ratings",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KNLTB padelratings voor een vaste groep spelers",
+  "engines": { "node": ">=20" }
+}
