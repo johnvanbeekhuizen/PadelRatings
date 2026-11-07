@@ -46,7 +46,7 @@ function createClient(log) {
     log.push(`cookiewall accepteren -> HTTP ${res.status}`);
   }
 
-  async function get(url, { depth = 0, triedCookiewall = false } = {}) {
+  async function get(url, { depth = 0, triedCookiewall = false, headers = {} } = {}) {
     const res = await fetch(url, {
       redirect: 'manual',
       headers: {
@@ -54,6 +54,7 @@ function createClient(log) {
         'accept-language': 'nl-NL,nl;q=0.9,en;q=0.5',
         accept: 'text/html,application/xhtml+xml',
         cookie: cookieHeader(),
+        ...headers,
       },
     });
     store(res);
@@ -63,9 +64,9 @@ function createClient(log) {
       if (/\/cookiewall/i.test(loc)) {
         if (triedCookiewall) throw new Error('Cookiewall blijft terugkomen');
         await acceptCookies(url);
-        return get(url, { depth: depth + 1, triedCookiewall: true });
+        return get(url, { depth: depth + 1, triedCookiewall: true, headers });
       }
-      return get(loc, { depth: depth + 1, triedCookiewall });
+      return get(loc, { depth: depth + 1, triedCookiewall, headers });
     }
     const html = await res.text();
     log.push(`GET ${url} -> HTTP ${res.status} (${html.length} tekens)`);
@@ -99,17 +100,26 @@ function htmlToText(html) {
 }
 
 function findProfileLinks(html) {
-  const re = new RegExp(`href="([^"]*\\/(?:player-profile|player|profile)\\/${GUID}[^"]*)"`, 'gi');
+  // elke href met een GUID erin en het woord "player"/"profile" in het pad
+  const re = new RegExp(`href=["']([^"']*${GUID}[^"']*)["']`, 'gi');
   const out = [];
   let m;
   while ((m = re.exec(html))) {
     const href = decodeEntities(m[1]);
+    if (!/player|profile|speler/i.test(href)) continue;
     const abs = new URL(href, BASE).toString();
-    // alleen de basis van het profiel (zonder tab-suffix) bewaren
-    const base = abs.match(new RegExp(`^(.*\\/(?:player-profile|player|profile)\\/${GUID})`, 'i'));
+    const base = abs.match(new RegExp(`^(.*${GUID})`, 'i'));
     const url = base ? base[1] : abs;
     if (!out.includes(url)) out.push(url);
   }
+  return out;
+}
+
+function allGuidLinks(html) {
+  const re = new RegExp(`href=["']([^"']*${GUID}[^"']*)["']`, 'gi');
+  const out = [];
+  let m;
+  while ((m = re.exec(html)) && out.length < 10) out.push(decodeEntities(m[1]));
   return out;
 }
 
@@ -150,22 +160,30 @@ function parsePadelRating(text) {
 
 async function lookup(id, log) {
   const client = createClient(log);
+  const ajax = { 'x-requested-with': 'XMLHttpRequest', accept: 'text/html, */*; q=0.01' };
   const searches = [
-    `${BASE}/find?q=${id}`,
-    `${BASE}/find/player/DoSearch?Query=${id}`,
-    `${BASE}/find/player?q=${id}`,
+    { url: `${BASE}/find?q=${id}` },
+    { url: `${BASE}/find/player/DoSearch?Query=${id}`, headers: ajax },
+    { url: `${BASE}/find/player/DoSearch?q=${id}`, headers: ajax },
+    { url: `${BASE}/find/player?q=${id}` },
+    { url: `${BASE}/find?query=${id}` },
+    { url: `${BASE}/search?q=${id}` },
   ];
 
   let candidates = [];
-  for (const url of searches) {
+  for (const s of searches) {
     try {
-      const { html, status } = await client.get(url);
+      const { html, status } = await client.get(s.url, { headers: s.headers || {} });
+      const text = htmlToText(html);
+      log.push(`  begin van pagina: ${text.slice(0, 200)}`);
+      log.push(`  cookiewall op pagina: ${/cookiewall|cookie-?instellingen/i.test(html)}`);
+      log.push(`  links met GUID: ${JSON.stringify(allGuidLinks(html))}`);
       if (status >= 400) continue;
       candidates = findProfileLinks(html);
       log.push(`zoekresultaat: ${candidates.length} profiel-link(s)`);
       if (candidates.length) break;
     } catch (e) {
-      log.push(`fout bij ${url}: ${e.message}`);
+      log.push(`fout bij ${s.url}: ${e.message}`);
     }
   }
   if (!candidates.length) {
